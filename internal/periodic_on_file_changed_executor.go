@@ -2,10 +2,11 @@ package internal
 
 import (
 	"fmt"
-	"github.com/howeyc/fsnotify"
 	"os"
 	"os/exec"
 	"time"
+
+	"github.com/howeyc/fsnotify"
 )
 
 type PeriodicOnFileChangedExecutor struct {
