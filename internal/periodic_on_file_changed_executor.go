@@ -31,7 +31,7 @@ func (e *PeriodicOnFileChangedExecutor) Execute() error {
 	}
 
 	fsEventChan := make(chan struct{}, 1)
-	fsErrorChan := make(chan error, 0)
+	fsErrorChan := make(chan error)
 	go func() {
 		for {
 			select {
@@ -47,38 +47,37 @@ func (e *PeriodicOnFileChangedExecutor) Execute() error {
 	}()
 
 	for {
-		select {
-		case <-ticker.C:
-			cmdOut, ferr, err := func() ([]byte, error, error) {
-				select {
-				case err = <-fsErrorChan:
-					return nil, err, nil
-				case <-fsEventChan:
-					cmdOut, err := e.CmdGenerator().CombinedOutput()
-					if err != nil {
-						return cmdOut, nil, fmt.Errorf("%w: %s", err, cmdOut)
-					}
-					return cmdOut, nil, nil
-				default:
-					return nil, nil, nil
+		<-ticker.C
+
+		cmdOut, ferr, err := func() ([]byte, error, error) {
+			select {
+			case err = <-fsErrorChan:
+				return nil, err, nil
+			case <-fsEventChan:
+				cmdOut, err := e.CmdGenerator().CombinedOutput()
+				if err != nil {
+					return cmdOut, nil, fmt.Errorf("%w: %s", err, cmdOut)
 				}
-			}()
-
-			if ferr != nil {
-				return ferr
+				return cmdOut, nil, nil
+			default:
+				return nil, nil, nil
 			}
+		}()
 
-			if err != nil {
-				if e.ExitOnError {
-					return err
-				}
-				_, _ = fmt.Fprintf(os.Stderr, "%s", cmdOut)
-				continue
-			}
+		if ferr != nil {
+			return ferr
+		}
 
-			if cmdOut != nil {
-				fmt.Printf("%s", cmdOut)
+		if err != nil {
+			if e.ExitOnError {
+				return err
 			}
+			_, _ = fmt.Fprintf(os.Stderr, "%s", cmdOut)
+			continue
+		}
+
+		if cmdOut != nil {
+			fmt.Printf("%s", cmdOut)
 		}
 	}
 }
